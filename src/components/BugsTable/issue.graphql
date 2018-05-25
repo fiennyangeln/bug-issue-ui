@@ -1,0 +1,29 @@
+query GetIssue($repoOwner: String!, $repoName: String!, $labels: [String!]){
+  repository(owner: $repoOwner, name: $repoName) {
+    issues(last: 20, labels: $labels, states: [OPEN], orderBy: {field: CREATED_AT, direction: DESC}) {
+      edges {
+        node {
+          number
+          assignees(last: 1) {
+            edges {
+              node {
+                login
+              }
+            }
+          }
+          updatedAt
+          url
+          title
+          labels(last: 2) {
+            edges {
+              node {
+                color
+                name
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

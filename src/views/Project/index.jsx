@@ -1,4 +1,5 @@
 import { Component } from 'react';
+import { ApolloConsumer } from 'react-apollo';
 import Grid from '@material-ui/core/Grid';
 import Typography from 'material-ui/Typography';
 import ReactMarkdown from 'react-markdown';
@@ -16,6 +17,15 @@ class Project extends Component {
   render() {
     const { fileName, projects } = this.state;
     const projectInfo = projects[fileName];
+    const tmp = projectInfo.repositories.reduce(
+      (prev, cur) => ({ ...prev, ...cur }),
+      {}
+    );
+    const repoList = Object.entries(tmp).map(([key, value]) => ({
+      repoOwner: key.split('/')[0],
+      repoName: key.split('/')[1],
+      labels: [value],
+    }));
 
     return (
       <div>
@@ -43,7 +53,15 @@ class Project extends Component {
               </div>
             </Grid>
           </Grid>
-          <BugsTable />
+          <ApolloConsumer>
+            {client => (
+              <BugsTable
+                client={client}
+                repoList={repoList}
+                projectName={projectInfo.name}
+              />
+            )}
+          </ApolloConsumer>
         </header>
       </div>
     );

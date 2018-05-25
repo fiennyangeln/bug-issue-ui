@@ -1,4 +1,4 @@
-import { Component } from 'react';
+import { Component, Fragment } from 'react';
 import PropTypes from 'prop-types';
 import { withStyles } from '@material-ui/core/styles';
 import Table from '@material-ui/core/Table';
@@ -12,15 +12,9 @@ import Paper from '@material-ui/core/Paper';
 import IconButton from '@material-ui/core/IconButton';
 import Tooltip from '@material-ui/core/Tooltip';
 import FilterListIcon from '@material-ui/icons/FilterList';
+import GetIssue from './issue.graphql';
 import BugsTableHead from './BugsTableHead';
-
-let counter = 0;
-
-function createData(project, description, tag, assignedto, lastupdate) {
-  counter += 1;
-
-  return { id: counter, project, description, tag, assignedto, lastupdate };
-}
+import BugsTableEntry from './BugsTableEntry';
 
 const toolbarStyles = theme => ({
   root: {
@@ -86,102 +80,69 @@ class BugsTable extends Component {
       order: 'desc',
       orderBy: 'lastupdate',
       selected: [],
-      data: [
-        createData(
-          'Taskcluster',
-          '333 - Make azure-entities and azure-blob0-storage independent of tc-lib-monitor',
-          'JS',
-          'None',
-          '2018-02-04'
-        ),
-        createData(
-          'Taskcluster',
-          '44 - Add pagination to auth.listRoles',
-          'JS',
-          'None',
-          '2018-03-05'
-        ),
-        createData(
-          'Taskcluster',
-          '1457126 - Authorization failures should state which clientId lacks scopes',
-          'Rust',
-          'None',
-          '2018-04-05'
-        ),
-        createData(
-          'Taskcluster',
-          '1453714 - Return http 424 instead of 403 for error artifacts',
-          'Python',
-          'None',
-          '2017-12-04'
-        ),
-        createData(
-          'Taskcluster',
-          '1451548 - Return 404 for indexes and namespaces that are expired',
-          'JS',
-          'None',
-          '2018-05-04'
-        ),
-        createData(
-          'Servo',
-          '1443016 - Create a fake version of azure-blob-storage',
-          'JS',
-          'None',
-          '2018-05-12'
-        ),
-        createData(
-          'Taskcluster',
-          '1443017 - Use a mock AWS library to test publishing API definitions',
-          'JS',
-          'None',
-          '2018-05-14'
-        ),
-        createData(
-          'Servo',
-          '1436212 - Add pagination to listClients',
-          'JS',
-          'None',
-          '2018-05-20'
-        ),
-        createData(
-          'Taskcluster',
-          '1344912 - Support tag events, too',
-          'JS',
-          'None',
-          '2018-01-01'
-        ),
-        createData(
-          'Taskcluster',
-          '1306494 - Add a diff+commit submit button to some text areas in tc-tools',
-          'JS',
-          'None',
-          '2018-02-12'
-        ),
-        createData(
-          'Servo',
-          '1441960 - Add measure of time to start processing a task',
-          'JS',
-          'None',
-          '2018-05-06'
-        ),
-        createData(
-          'Servo',
-          '1446768 - Only post "No taskcluster jobs.." to a PR once',
-          'JS',
-          'None',
-          '2018-05-01'
-        ),
-        createData(
-          'Taskcluster',
-          '1441977 - Run tests for taskcluster-treeherder in Taskcluster',
-          'JS',
-          'None',
-          '2018-05-03'
-        ),
-      ].sort((a, b) => (a.lastupdate > b.lastupdate ? -1 : 1)),
+      data: [],
       page: 0,
       rowsPerPage: 5,
     };
+  }
+
+  fetchData(repoList) {
+    const { client } = this.props;
+    const promises = repoList.map(({ repoName, repoOwner, labels }) =>
+      client
+        .query({
+          query: GetIssue,
+          variables: {
+            repoName,
+            repoOwner,
+            labels,
+          },
+        })
+        .catch(
+          () =>
+            new Promise(resolve => {
+              resolve(false);
+            })
+        )
+    );
+
+    Promise.all(promises).then(data => {
+      const repoData = data
+        .filter(item => item)
+        .map(item => item.data.repository.issues.edges);
+      const issuesList = repoData.reduce((prev, curr) => {
+        const currIssues = curr.map(curr => curr.node);
+
+        return [
+          ...prev,
+          currIssues.map(issue => {
+            const obj = {
+              project: this.props.projectName || '-',
+              description: `${issue.number} - ${issue.title}`,
+              tag: issue.labels.edges.map(label => label.node),
+              lastupdate: issue.updatedAt,
+              assignedto: issue.assignees.edges[0]
+                ? issue.assignees.edges[0].node.login
+                : 'None',
+            };
+
+            return obj;
+          }),
+        ];
+      }, []);
+
+      this.setState({
+        data: []
+          .concat(...issuesList)
+          .sort((a, b) => (a.lastupdate > b.lastupdate ? -1 : 1)),
+      });
+    });
+  }
+
+  componentDidMount() {
+    const { repoList } = this.props;
+
+    this.fetchData(repoList);
   }
 
   handleRequestSort = (event, property) => {
@@ -217,53 +178,58 @@ class BugsTable extends Component {
       rowsPerPage - Math.min(rowsPerPage, data.length - page * rowsPerPage);
 
     return (
-      <Paper className={classes.root}>
-        <BugsTableToolbar />
-        <div className={classes.tableWrapper}>
-          <Table className={classes.table} aria-labelledby="tableTitle">
-            <BugsTableHead
-              order={order}
-              orderBy={orderBy}
-              onRequestSort={this.handleRequestSort}
-              rowCount={data.length}
+      <Fragment>
+        {data.length === 0 ? (
+          <div>loading...</div>
+        ) : (
+          <Paper className={classes.root}>
+            <BugsTableToolbar />
+            <div className={classes.tableWrapper}>
+              <Table className={classes.table} aria-labelledby="tableTitle">
+                <BugsTableHead
+                  order={order}
+                  orderBy={orderBy}
+                  onRequestSort={this.handleRequestSort}
+                  rowCount={data.length}
+                />
+                <TableBody>
+                  {data
+                    .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
+                    .map(n => (
+                      <BugsTableEntry
+                        key={n.id}
+                        project={n.project}
+                        description={n.description}
+                        tag={n.tag}
+                        assignedto={n.assignedto}
+                        lastupdate={n.lastupdate}
+                      />
+                    ))}
+                  {emptyRows > 0 && (
+                    <TableRow style={{ height: 49 * emptyRows }}>
+                      <TableCell colSpan={6} />
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+            <TablePagination
+              component="div"
+              count={data.length}
+              rowsPerPage={rowsPerPage}
+              page={page}
+              backIconButtonProps={{
+                'aria-label': 'Previous Page',
+              }}
+              nextIconButtonProps={{
+                'aria-label': 'Next Page',
+              }}
+              onChangePage={this.handleChangePage}
+              onChangeRowsPerPage={this.handleChangeRowsPerPage}
             />
-            <TableBody>
-              {data
-                .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
-                .map(n => (
-                  <TableRow hover tabIndex={-1} key={n.id}>
-                    <TableCell component="th" scope="row" padding="none">
-                      {n.project}
-                    </TableCell>
-                    <TableCell>{n.description}</TableCell>
-                    <TableCell>{n.tag}</TableCell>
-                    <TableCell>{n.assignedto}</TableCell>
-                    <TableCell>{n.lastupdate}</TableCell>
-                  </TableRow>
-                ))}
-              {emptyRows > 0 && (
-                <TableRow style={{ height: 49 * emptyRows }}>
-                  <TableCell colSpan={6} />
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </div>
-        <TablePagination
-          component="div"
-          count={data.length}
-          rowsPerPage={rowsPerPage}
-          page={page}
-          backIconButtonProps={{
-            'aria-label': 'Previous Page',
-          }}
-          nextIconButtonProps={{
-            'aria-label': 'Next Page',
-          }}
-          onChangePage={this.handleChangePage}
-          onChangeRowsPerPage={this.handleChangeRowsPerPage}
-        />
-      </Paper>
+          </Paper>
+        )}
+      </Fragment>
     );
   }
 }
