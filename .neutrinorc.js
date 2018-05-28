@@ -8,6 +8,7 @@ module.exports = {
         }
       }
     ],
+    ['@neutrinojs/env', ['GITHUB_PERSONAL_ACCESS_TOKEN']],
     (neutrino) => {
     neutrino.config.output.publicPath('/');
     neutrino.config.module

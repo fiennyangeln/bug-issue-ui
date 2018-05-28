@@ -4,16 +4,18 @@
   "main": "index.js",
   "license": "MIT",
   "scripts": {
-    "build": "neutrino build",
-    "start": "neutrino start",
+    "build": "neutrino build --require dotenv/config",
+    "start": "neutrino start --require dotenv/config",
     "lint": "neutrino lint"
   },
   "dependencies": {
     "@material-ui/core": "^1.0.0-rc.0",
     "@material-ui/icons": "^1.0.0-rc.0",
+    "@neutrinojs/env": "^8.2.3",
     "apollo-cache-inmemory": "^1.2.1",
     "apollo-client": "^2.3.1",
     "apollo-link-http": "^1.5.4",
+    "dotenv": "^5.0.1",
     "graphql": "^0.13.2",
     "graphql-tag": "^2.9.2",
     "js-yaml-loader": "^0.1.0",

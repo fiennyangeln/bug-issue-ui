@@ -14,11 +14,13 @@ class App extends Component {
     link: new HttpLink({
       uri: 'https://api.github.com/graphql',
       headers: {
-        authorization: 'Bearer f7853122b0e8133679d7e9ad71fcae7016e3468b',
+        authorization: `Bearer ${process.env.GITHUB_PERSONAL_ACCESS_TOKEN}`,
       },
     }),
   });
   render() {
+    console.log(process.env);
+
     return (
       <ApolloProvider client={this.apolloClient}>
         <BrowserRouter>
