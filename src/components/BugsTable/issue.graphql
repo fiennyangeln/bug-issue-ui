@@ -1,6 +1,6 @@
-query GetIssue($repoOwner: String!, $repoName: String!, $labels: [String!]){
+query GetIssue($repoOwner: String!, $repoName: String!, $labels: [String!], $cursor: String){
   repository(owner: $repoOwner, name: $repoName) {
-    issues(last: 20, labels: $labels, states: [OPEN], orderBy: {field: CREATED_AT, direction: DESC}) {
+    issues(first: 20, labels: $labels, states: [OPEN], after: $cursor, orderBy: {field: UPDATED_AT, direction: DESC}) {
       edges {
         node {
           number
@@ -23,6 +23,10 @@ query GetIssue($repoOwner: String!, $repoName: String!, $labels: [String!]){
             }
           }
         }
+      }
+      pageInfo {
+        endCursor
+        hasNextPage
       }
     }
   }

@@ -12,6 +12,7 @@ import Paper from '@material-ui/core/Paper';
 import IconButton from '@material-ui/core/IconButton';
 import Tooltip from '@material-ui/core/Tooltip';
 import FilterListIcon from '@material-ui/icons/FilterList';
+import _ from 'lodash';
 import GetIssue from './issue.graphql';
 import BugsTableHead from './BugsTableHead';
 import BugsTableEntry from './BugsTableEntry';
@@ -86,27 +87,37 @@ class BugsTable extends Component {
     };
   }
 
-  fetchData(repoList) {
+  fetchDataNext(repoList) {
     const { client } = this.props;
-    const promises = repoList.map(({ repoName, repoOwner, labels }) =>
-      client
+    const promises = repoList.map(({ repoName, repoOwner, labels, cursor }) => {
+      const variables = cursor
+        ? { repoName, repoOwner, labels, cursor }
+        : { repoOwner, repoName, labels };
+
+      return client
         .query({
           query: GetIssue,
-          variables: {
-            repoName,
-            repoOwner,
-            labels,
-          },
+          variables,
         })
         .catch(
           () =>
             new Promise(resolve => {
               resolve(false);
             })
-        )
-    );
+        );
+    });
 
-    Promise.all(promises).then(data => {
+    Promise.all(promises).then(promiseResult => {
+      const data = promiseResult.map((item, idx) => {
+        if (item) {
+          return {
+            ...item,
+            repoInfo: repoList[idx],
+          };
+        }
+
+        return item;
+      });
       const repoData = data
         .filter(item => item)
         .map(item => item.data.repository.issues.edges);
@@ -115,9 +126,10 @@ class BugsTable extends Component {
 
         return [
           ...prev,
-          currIssues.map(issue => {
+          ...currIssues.map(issue => {
             const obj = {
               project: this.props.projectName || '-',
+              id: issue.number,
               description: `${issue.number} - ${issue.title}`,
               tag: issue.labels.edges.map(label => label.node),
               lastupdate: issue.updatedAt,
@@ -130,11 +142,23 @@ class BugsTable extends Component {
           }),
         ];
       }, []);
+      const hasNextPageList = data
+        .filter(
+          item => item && item.data.repository.issues.pageInfo.hasNextPage
+        )
+
+        .map(item => ({
+          repoName: item.repoInfo.repoName,
+          repoOwner: item.repoInfo.repoOwner,
+          labels: item.repoInfo.labels,
+          cursor: item.data.repository.issues.pageInfo.endCursor,
+        }));
 
       this.setState({
-        data: []
-          .concat(...issuesList)
-          .sort((a, b) => (a.lastupdate > b.lastupdate ? -1 : 1)),
+        data: _.uniqBy([...this.state.data, ...issuesList], 'description').sort(
+          (a, b) => (a.lastupdate > b.lastupdate ? -1 : 1)
+        ),
+        hasNextPageList,
       });
     });
   }
@@ -142,7 +166,7 @@ class BugsTable extends Component {
   componentDidMount() {
     const { repoList } = this.props;
 
-    this.fetchData(repoList);
+    this.fetchDataNext(repoList);
   }
 
   handleRequestSort = (event, property) => {
@@ -162,7 +186,17 @@ class BugsTable extends Component {
   };
 
   handleChangePage = (event, page) => {
+    const threshold = 40;
+    const { rowsPerPage, data, hasNextPageList } = this.state;
+
     this.setState({ page });
+
+    if (
+      data.length - rowsPerPage * page < threshold &&
+      hasNextPageList.length > 0
+    ) {
+      this.fetchDataNext(hasNextPageList);
+    }
   };
 
   handleChangeRowsPerPage = event => {
@@ -215,6 +249,7 @@ class BugsTable extends Component {
             </div>
             <TablePagination
               component="div"
+              labelDisplayedRows={({ from, to }) => `${from}-${to}`}
               count={data.length}
               rowsPerPage={rowsPerPage}
               page={page}
