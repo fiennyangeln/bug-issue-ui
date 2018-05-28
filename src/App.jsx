@@ -14,7 +14,7 @@ class App extends Component {
     link: new HttpLink({
       uri: 'https://api.github.com/graphql',
       headers: {
-        authorization: 'Bearer 44d5e789f6453fa0ae35d0ac77ee1a876f8e2296',
+        authorization: 'Bearer 3cfd6314422903517b083e502bbe6912b9efc196',
       },
     }),
   });
