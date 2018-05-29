@@ -12,8 +12,8 @@ import Paper from '@material-ui/core/Paper';
 import IconButton from '@material-ui/core/IconButton';
 import Tooltip from '@material-ui/core/Tooltip';
 import FilterListIcon from '@material-ui/icons/FilterList';
+import gql from 'graphql-tag';
 import _ from 'lodash';
-import GetIssue from './issue.graphql';
 import BugsTableHead from './BugsTableHead';
 import BugsTableEntry from './BugsTableEntry';
 
@@ -89,78 +89,110 @@ class BugsTable extends Component {
 
   fetchDataNext(repoList) {
     const { client } = this.props;
-    const promises = repoList.map(({ repoName, repoOwner, labels, cursor }) => {
-      const variables = cursor
-        ? { repoName, repoOwner, labels, cursor }
-        : { repoOwner, repoName, labels };
+    let allQuery = '';
 
-      return client
-        .query({
-          query: GetIssue,
-          variables,
-        })
-        .catch(
-          () =>
-            new Promise(resolve => {
-              resolve(false);
-            })
-        );
+    repoList.forEach((repo, idx) => {
+      const noCursorQuery = `_${idx}: repository(owner:"${
+        repo.repoOwner
+      }", name:"${repo.repoName}")\n
+      { issues(first:20, states:[OPEN], orderBy: {field: UPDATED_AT, direction: DESC}, labels:${JSON.stringify(
+        repo.labels
+      )})
+      {...OpenIssues}}\n`;
+      const cursorQuery = `_${idx}: repository(owner:"${
+        repo.repoOwner
+      }", name:"${repo.repoName}")\n
+      { issues(first:20, states:[OPEN], orderBy: {field: UPDATED_AT, direction: DESC}, labels:${JSON.stringify(
+        repo.labels
+      )}, after:"${repo.cursor}")
+      {...OpenIssues}}\n`;
+
+      allQuery = repo.cursor
+        ? allQuery.concat(cursorQuery)
+        : allQuery.concat(noCursorQuery);
     });
 
-    Promise.all(promises).then(promiseResult => {
-      const data = promiseResult.map((item, idx) => {
-        if (item) {
-          return {
-            ...item,
-            repoInfo: repoList[idx],
-          };
+    const fragment = `
+    fragment OpenIssues on IssueConnection{
+      nodes {
+        number
+        updatedAt
+        url
+        title
+        assignees(last:1) {
+          nodes{
+            login
+          }
         }
+        labels(last: 2) {
+          nodes {
+            color
+            name
+          }
+        }
+      }
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
+    }`;
 
-        return item;
+    client
+      .query({ query: gql`{${allQuery}}\n${fragment}` })
+      .catch(
+        () =>
+          new Promise(resolve => {
+            resolve(false);
+          })
+      )
+      .then(PromiseResult => {
+        const repositoriesData = Object.entries(PromiseResult.data).map(
+          ([key, value]) => ({
+            ...value,
+            ...repoList[parseInt(key.split('_')[1], 10)],
+          })
+        );
+        const issuesData = repositoriesData.reduce((previous, repoData) => {
+          const currIssues = repoData.issues.nodes.map(issue => ({
+            ...issue,
+            productName: repoData.repoName,
+          }));
+
+          return [
+            ...previous,
+            ...currIssues.map(issue => {
+              const obj = {
+                project: issue.productName,
+                id: issue.number,
+                description: `${issue.number} - ${issue.title}`,
+                tag: issue.labels.nodes,
+                lastupdate: issue.updatedAt,
+                assignedto: issue.assignees.nodes[0]
+                  ? issue.assignees.nodes[0].login
+                  : 'None',
+              };
+
+              return obj;
+            }),
+          ];
+        }, []);
+        const hasNextPageList = repositoriesData
+          .filter(repoData => repoData.issues.pageInfo.hasNextPage)
+          .map(repoData => ({
+            repoName: repoData.repoName,
+            repoOwner: repoData.repoOwner,
+            labels: repoData.labels,
+            cursor: repoData.issues.pageInfo.endCursor,
+          }));
+
+        this.setState({
+          data: _.uniqBy(
+            [...this.state.data, ...issuesData],
+            'description'
+          ).sort((a, b) => (a.lastupdate > b.lastupdate ? -1 : 1)),
+          hasNextPageList,
+        });
       });
-      const repoData = data
-        .filter(item => item)
-        .map(item => item.data.repository.issues.edges);
-      const issuesList = repoData.reduce((prev, curr) => {
-        const currIssues = curr.map(curr => curr.node);
-
-        return [
-          ...prev,
-          ...currIssues.map(issue => {
-            const obj = {
-              project: this.props.projectName || '-',
-              id: issue.number,
-              description: `${issue.number} - ${issue.title}`,
-              tag: issue.labels.edges.map(label => label.node),
-              lastupdate: issue.updatedAt,
-              assignedto: issue.assignees.edges[0]
-                ? issue.assignees.edges[0].node.login
-                : 'None',
-            };
-
-            return obj;
-          }),
-        ];
-      }, []);
-      const hasNextPageList = data
-        .filter(
-          item => item && item.data.repository.issues.pageInfo.hasNextPage
-        )
-
-        .map(item => ({
-          repoName: item.repoInfo.repoName,
-          repoOwner: item.repoInfo.repoOwner,
-          labels: item.repoInfo.labels,
-          cursor: item.data.repository.issues.pageInfo.endCursor,
-        }));
-
-      this.setState({
-        data: _.uniqBy([...this.state.data, ...issuesList], 'description').sort(
-          (a, b) => (a.lastupdate > b.lastupdate ? -1 : 1)
-        ),
-        hasNextPageList,
-      });
-    });
   }
 
   componentDidMount() {

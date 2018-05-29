@@ -19,8 +19,6 @@ class App extends Component {
     }),
   });
   render() {
-    console.log(process.env);
-
     return (
       <ApolloProvider client={this.apolloClient}>
         <BrowserRouter>
