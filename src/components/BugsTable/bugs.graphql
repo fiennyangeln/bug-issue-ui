@@ -1,0 +1,21 @@
+query Bugs($searchProduct: BugSearch!, $paging: Paging) {
+  bug: bugs(search: $searchProduct, paging: $paging) {
+    pageInfo {
+      hasNextPage
+      nextPage
+    }
+    edges {
+      node {
+        assignedTo {
+          name
+        }
+        component
+        lastChanged
+        id
+        summary
+        status
+        resolution
+      }
+    }
+  }
+}

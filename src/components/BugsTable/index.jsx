@@ -115,7 +115,10 @@ class BugsTable extends Component {
         : allQuery.concat(noCursorQuery);
     });
     client
-      .query({ query: gql`{${allQuery}}\n${Issues}` })
+      .query({
+        query: gql`{${allQuery}}\n${Issues}`,
+        context: { link: 'github' },
+      })
       .catch(
         () =>
           new Promise(resolve => {

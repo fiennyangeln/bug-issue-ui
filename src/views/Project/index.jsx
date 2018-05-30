@@ -18,7 +18,7 @@ class Project extends Component {
     const { fileName, projects } = this.state;
     const projectInfo = projects[fileName];
     // dictionary with repo as key and tag as value
-    const tmp = projectInfo.repositories
+    let tmp = projectInfo.repositories
       ? projectInfo.repositories.reduce(
           (prev, cur) => ({ ...prev, ...cur }),
           {}
@@ -44,6 +44,13 @@ class Project extends Component {
         query: value.join(' '),
       })
     );
+
+    tmp = projectInfo.products
+      ? projectInfo.products.reduce(
+        (prev, cur) => ({ ...prev, ...cur }),
+        {}
+      )
+      : {};
 
     return (
       <div>
