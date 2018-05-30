@@ -18,7 +18,7 @@ class Project extends Component {
     const { fileName, projects } = this.state;
     const projectInfo = projects[fileName];
     // dictionary with repo as key and tag as value
-    let tmp = projectInfo.repositories
+    const tmp = projectInfo.repositories
       ? projectInfo.repositories.reduce(
           (prev, cur) => ({ ...prev, ...cur }),
           {}
@@ -44,13 +44,22 @@ class Project extends Component {
         query: value.join(' '),
       })
     );
+    // list of product with no component specified
+    const productList = projectInfo.products.filter(
+      product => typeof product === 'string'
+    );
+    // list of product with its component specified
+    const productTemp = projectInfo.products
+      .filter(product => typeof product !== 'string')
+      .reduce((prev, cur) => ({ ...prev, ...cur }), {});
+    const productComponentList = Object.entries(productTemp).map(
+      ([key, value]) => ({
+        products: [key],
+        components: value,
+      })
+    );
 
-    tmp = projectInfo.products
-      ? projectInfo.products.reduce(
-        (prev, cur) => ({ ...prev, ...cur }),
-        {}
-      )
-      : {};
+    console.log(productList, productComponentList);
 
     return (
       <div>
@@ -84,6 +93,8 @@ class Project extends Component {
                 client={client}
                 projectName={projectInfo.name}
                 tagRepoList={tagRepoList}
+                productList={productList}
+                productComponentList={productComponentList}
               />
             )}
           </ApolloConsumer>

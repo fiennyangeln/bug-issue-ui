@@ -17,6 +17,7 @@ import _ from 'lodash';
 import BugsTableHead from './BugsTableHead';
 import BugsTableEntry from './BugsTableEntry';
 import Issues from './issues.graphql';
+import BugsQuery from './bugs.graphql';
 
 const toolbarStyles = theme => ({
   root: {
@@ -87,7 +88,51 @@ class BugsTable extends Component {
       rowsPerPage: 5,
       loading: true,
       error: false,
+      productNextPage: {},
     };
+  }
+  fetchBugs(variables, product) {
+    const { client } = this.props;
+
+    console.log('fetching', product);
+    client
+      .query({
+        query: BugsQuery,
+        variables,
+        context: { link: 'bugzilla' },
+      })
+      .catch(
+        () =>
+          new Promise(resolve => {
+            resolve(false);
+          })
+      )
+      .then(({ data, loading, error }) => {
+        console.log(data, error);
+        const bugsData = data.bug.edges.map(edge => edge.node).map(bug => ({
+          assignedto: bug.assignedTo.name || 'None',
+          project: bug.component,
+          id: bug.id,
+          tag: bug.tags || '',
+          description: `${bug.id} - ${bug.summary}`,
+          lastupdate: bug.lastChanged,
+        }));
+        const nextPage = data.bug.pageInfo.hasNextPage
+          ? data.bug.pageInfo.nextPage
+          : -1;
+
+        this.setState({
+          data: _.uniqBy([...this.state.data, ...bugsData], 'description').sort(
+            (a, b) => (a.lastupdate > b.lastupdate ? -1 : 1)
+          ),
+          productNextPage: {
+            ...this.state.productNextPage,
+            [product]: nextPage,
+          },
+          loading,
+          error,
+        });
+      });
   }
 
   fetchDataNext(tagRepoList) {
@@ -173,10 +218,37 @@ class BugsTable extends Component {
       });
   }
 
-  componentDidMount() {
-    const { tagRepoList } = this.props;
+  fetchFromBugzilla() {
+    const { productList, productComponentList } = this.props;
+    const { productNextPage } = this.state;
+    const variables = {
+      searchProduct: {
+        products: productList,
+        tags: ['good-first-bug'],
+        statuses: ['NEW', 'UNCONFIRMED', 'ASSIGNED', 'REOPENED'],
+      },
+      paging: {
+        page: productNextPage,
+        pageSize: 45,
+      },
+    };
 
-    this.fetchDataNext(tagRepoList);
+    if (productNextPage !== -1 && productList.length !== 0)
+      this.fetchBugs(variables, 'products');
+
+    productComponentList.forEach(item => {
+      variables.searchProduct.products = item.products;
+      variables.searchProduct.components = item.components;
+      variables.paging.page = productNextPage[item.products] || 0;
+
+      if (variables.paging.page !== -1) {
+        this.fetchBugs(variables, item.products);
+      }
+    });
+  }
+  componentDidMount() {
+    // this.fetchDataNext(tagRepoList);
+    this.fetchFromBugzilla();
   }
 
   handleRequestSort = (event, property) => {

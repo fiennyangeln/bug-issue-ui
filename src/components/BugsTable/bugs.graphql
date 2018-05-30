@@ -9,6 +9,7 @@ query Bugs($searchProduct: BugSearch!, $paging: Paging) {
         assignedTo {
           name
         }
+        tags
         component
         lastChanged
         id
