@@ -59,9 +59,10 @@ This will start a local development server on port 5000 (http://localhost:5000).
 
 ## Adding a project
 
-Codetribute can read from both GitHub and Bugzilla. To add a new entry to the site, create a file `<project-name>.yml` 
-in `src/data` using the [template example](#template-example) as the initial setup. 
-For inspiration, check out the [Taskcluster](https://github.com/mozilla-frontend-infra/codetribute/blob/master/src/data/taskcluster.yaml) yaml file.
+Codetribute can read from both GitHub and Bugzilla. Bugzilla bugs will need to have `good-first-bug` keyword to appear in the list. 
+To add a new entry to the site, create a file `<project-name>.yml` in `src/data` using the [template example](#template-example) 
+as the initial setup. For inspiration, check out the [Taskcluster](https://github.com/mozilla-frontend-infra/codetribute/blob/master/src/data/taskcluster.yaml)
+yaml file.
 
 ### Template Example
 
