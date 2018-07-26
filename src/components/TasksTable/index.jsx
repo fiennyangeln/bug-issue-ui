@@ -18,6 +18,7 @@ import CloseIcon from 'mdi-react/CloseIcon';
 import { withRouter } from 'react-router-dom';
 import { arrayOf, object } from 'prop-types';
 import { camelCase } from 'change-case';
+import Linkify from 'react-linkify';
 import { formatDistance, differenceInCalendarDays } from 'date-fns';
 import { memoizeWith, omit, pipe, sort as rSort, map } from 'ramda';
 import MenuItem from '@material-ui/core/MenuItem';
@@ -251,15 +252,18 @@ export default class TasksTable extends Component {
     this.setQuery({});
   };
 
-  handleDrawerOpen = ({ target: { name } }) => {
-    memoizeWith(
-      name => name,
-      name =>
-        this.setState({
-          drawerOpen: true,
-          drawerItem: this.props.items.find(item => item.summary === name),
-        })
-    )(name);
+  handleDrawerOpen = async ({ currentTarget: { name } }) => {
+    const item = this.props.items.find(item => item.summary === name);
+
+    this.setState({
+      drawerOpen: true,
+      drawerItem: {
+        ...item,
+        ...(item.url.includes('bugzilla.mozilla.org')
+          ? { description: await this.props.onBugInfoClick(item.id) }
+          : null),
+      },
+    });
   };
 
   handleDrawerClose = () => {
@@ -434,7 +438,15 @@ export default class TasksTable extends Component {
                   <ListItem>
                     <ListItemText
                       primary="Description"
-                      secondary={drawerItem.description}
+                      secondary={
+                        <Linkify
+                          properties={{
+                            target: '_blank',
+                            rel: 'noopener noreferrer',
+                          }}>
+                          {drawerItem.description}
+                        </Linkify>
+                      }
                     />
                   </ListItem>
                 )}
